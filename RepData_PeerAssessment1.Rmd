@@ -1,0 +1,274 @@
+---
+title: "RepData_PeerAssessment1"
+author: "olb1605"
+date: "August 10, 2015"
+output: html_document
+---
+
+
+## Introduction  
+
+It is now possible to collect a large amount of data about personal movement using activity monitoring devices such as a Fitbit, Nike Fuelband, or Jawbone Up. These type of devices are part of the “quantified self” movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. But these data remain under-utilized both because the raw data are hard to obtain and there is a lack of statistical methods and software for processing and interpreting the data.
+
+This assignment makes use of data from a personal activity monitoring device. This device collects data at 5 minute intervals through out the day. The data consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day.
+
+
+
+## Data  
+
+The data is in the file: "repdata_data_activity.zip". The data set is stored in a comma-separated-value (CSV) file activity.csv and there are a total of 17,568 observations in this data set. 
+
+The variables included in this data set are:
+
+- steps: Number of steps taking in a 5-minute interval (missing values are coded as NA)
+- date: The date on which the measurement was taken in YYYY-MM-DD format
+- interval: Identifier for the 5-minute interval in which measurement was taken
+
+
+
+## Assignment  
+
+### Loading and preprocessing the data  
+
+1. Load the data: the data loaded in the data set **DataSteps** using read.csv.
+
+```{r}
+unzip('repdata_data_activity.zip')
+DataSteps<- read.csv("activity.csv")
+
+```
+
+
+
+
+2. Prepare the data for analysis:
+Change class for the "date" and apply one format (Year - Month - Day)
+
+```{r}
+DataSteps$date <- as.Date(DataSteps$date,"%Y-%m-%d")
+
+```
+
+
+
+
+### What is mean total number of steps taken per day?
+
+1.The total number of steps taken per day is calculated using aggregate function. Data contains 17,568 observations.  In this analysis the missing values in the data set ("NA") will be ignored.
+
+- create the data set **StepsPerDay** that contains the total number of step per day
+- calculate mean and median
+
+
+```{r}
+# Agregate number of steps per day. 
+StepsPerDay <-  aggregate(steps~date, DataSteps, sum, na.rm=TRUE)
+
+# Mean and median calculation
+MeanSteps <- mean(StepsPerDay$steps)
+MeanSteps
+
+MedianSteps <- median(StepsPerDay$steps)
+MedianSteps
+
+```
+
+
+
+The mean `r MeanSteps` is close to the median `r MedianSteps`.
+A histogram with the normal density curve of the total number of steps taken each day build based on the data set StepsPerDay containing 53 days in total.
+
+
+
+
+```{r, echo=TRUE}
+# create a histogram
+par(mfrow=c(1, 1), mar=c(5.1,4.1,2.1,5.1))
+h <- hist(StepsPerDay$steps, col="grey", main="Total number of steps per day",xlab="Total steps per day",ylab="Frequency", breaks=20)
+
+# Add a Normal curve
+xfit<-seq(min(StepsPerDay$steps),max(StepsPerDay$steps),length=40) 
+yfit<-dnorm(xfit,mean=mean(StepsPerDay$steps),sd=sd(StepsPerDay$steps)) 
+yfit <- yfit*diff(h$mids[1:2])*length(StepsPerDay$steps) 
+lines(xfit, yfit, col="red", lwd=3) 
+
+```
+
+
+The distribution seems symmetric and approximately bell shaped.
+
+
+
+### What is the average daily activity pattern?
+
+To define the average daily activity pattern we make a a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis).
+The 5-minute interval, on average across all the days in the data set, contains the maximum number of steps identified and added to the plot.
+
+
+
+```{r, echo=TRUE}
+par(mfrow=c(1, 1), mar=c(5.1,4.1,2.1,5.1))
+# Agregate an average number of steps per interval. 
+StepsPerDayMean <-  aggregate(steps~interval, DataSteps, mean, na.rm=TRUE)
+
+# Define the interval with maximum steps
+StepsMax <- StepsPerDayMean[which(StepsPerDayMean$steps==max(StepsPerDayMean$steps)),]
+
+#Make a plot
+plot(StepsPerDayMean$interval, StepsPerDayMean$steps, type="l", col="blue", xlab="5 minute interval", ylab="Average number of steps", main="Average number of steps by each 5 minute interval")
+points(StepsMax, y = NULL, type = "p", col="red", cex=2, pch=1)
+
+text(StepsMax-10, y = NULL, "Interval", cex = .8, pos = 2)
+text(StepsMax-10, labels = StepsMax$interval, cex = .8, pos = 4)
+text(StepsMax-20, y = NULL, "Maximum Steps", cex = .8, pos = 2)
+text(StepsMax-20, labels = round(StepsMax$steps,2), cex = .8, pos = 4)
+
+```
+
+
+Interval `r StepsMax$interval` contains the maximum number of steps `r round(StepsMax$steps,2)`.
+
+
+
+
+### Imputing missing values
+
+There are a number of days/intervals where there are missing values (coded as NA). The presence of missing days may introduce bias into some calculations or summaries of the data.
+
+1.The total number of missing values in the data set (i.e. the total number of rows with NAs).
+
+
+```{r}
+TotalNAs<-sum(is.na(DataSteps))
+TotalNAs
+
+NAs<-sum(is.na(DataSteps$steps))
+NAs
+
+```
+
+
+Total number of NAs in the data set is equal to the number of NAs in the column "steps". The number of NAs in the column "steps" corresponds to the number of rows.
+
+
+
+2.To fill in all of the missing values in the data set we will do the following steps:
+
+- Add mean of each interval from **StepsPerDayMean** to the initial data set **DataSteps** (column "steps" represent initial number of steps, column "stepsMean" contains the mean)
+
+- replace NA values in the column "steps" with the values from the column "stepsMean"
+
+- remove unnecessary data
+
+
+
+```{r}
+#Add mean of corresponding interval to initial data set
+DataStepsNNA = merge(DataSteps, StepsPerDayMean, by="interval")
+names(DataStepsNNA)[names(DataStepsNNA)=="steps.x"] <- "steps"
+names(DataStepsNNA)[names(DataStepsNNA)=="steps.y"] <- "stepsMean"
+
+#Replace NAs in column "steps" with the value from column "stepsMean"
+DataStepsNNA$steps <- ifelse(is.na(DataStepsNNA$steps), DataStepsNNA$stepsMean, DataStepsNNA$steps)
+
+#Remove unnecessry data
+DataStepsNNA$stepsMean <- NULL
+
+```
+
+
+3. A new data set **DataStepsNNA** is equal to the original data set but with the missing data filled in.
+
+
+4. Based on the new data set we calculate the mean and  median of the total number of steps taken per day:
+
+
+```{r}
+# Agregate number of steps per day. 
+StepsPerDayNNA <-  aggregate(steps~date, DataStepsNNA, sum, na.rm=TRUE)
+
+# Mean and median calculation
+MeanStepsNNA <- mean(StepsPerDayNNA$steps)
+MeanStepsNNA
+
+MedianStepsNNA <- median(StepsPerDayNNA$steps)
+MedianStepsNNA
+
+```
+
+
+The mean and the median of the data set with imputed missing values are `r MeanStepsNNA` and `r MedianStepsNNA`. The Mean is equal to and median. The mean value after replacement corresponds to initial mean `r MeanSteps`. The initial median `r MedianSteps`  is slightly different.  
+
+The histogram of the data set without missing values very close to the initial histogram, although there are clearly more data added in the analysis. 
+
+
+
+```{r, echo=TRUE}
+par(mfrow=c(2, 1), mar=c(2.1,4.1,1.1,2.1))
+
+#Initial histogram with missing values
+h<-hist(StepsPerDay$steps, col="grey", main="With missing values",xlab="Total steps per day",ylab="Frequency", ylim=c(0,20), breaks=20)
+
+
+# Add a Normal curve to the initial histogram
+xfit<-seq(min(StepsPerDay$steps),max(StepsPerDay$steps),length=40) 
+yfit<-dnorm(xfit,mean=mean(StepsPerDay$steps),sd=sd(StepsPerDay$steps)) 
+yfit <- yfit*diff(h$mids[1:2])*length(StepsPerDay$steps) 
+lines(xfit, yfit, col="red", lwd=3) 
+
+#histogram with imputed missing values
+hImputed<-hist(StepsPerDayNNA$steps, col="lightgreen", main="Imputed missing values",xlab="Total steps per day",ylab="Frequency", ylim=c(0,20), breaks=20)
+
+# Add a Normal curve to the histogram with imputed missing values
+xfit<-seq(min(StepsPerDay$steps),max(StepsPerDay$steps),length=40) 
+yfit<-dnorm(xfit,mean=mean(StepsPerDay$steps),sd=sd(StepsPerDay$steps)) 
+yfit <- yfit*diff(hImputed$mids[1:2])*length(StepsPerDay$steps) 
+lines(xfit, yfit, col="red", lwd=3) 
+
+```
+
+
+
+### Are there differences in activity patterns between weekdays and weekends?
+
+To analyse the activity pattern between the weekdays and weekends we will use the data set **DataStepsNNA** with the imputed missing value.
+
+1.Create a new factor variable in the data set with two levels – “weekday” and “weekend” indicating whether a given date is a weekday or weekend day.
+
+- function weekdays() adds day name in the column "Weekday"
+- column "WeekdayGroup" specify weekday or weekend. I used function format() with %w parameter to be able to define days by number, where 1 corresponds to Monday and so on. Saturday and Sunday equal to 6 and 0 accordingly.
+
+
+
+```{r}
+DataStepsNNA$Weekday <- weekdays(as.Date(DataStepsNNA$date))
+DataStepsNNA$WeekdayGroup<-ifelse(as.integer(format(as.Date(DataStepsNNA$date),"%w"))%in% c(1:5),'weekday', 'weekend')
+
+```
+
+
+
+2.Make a panel plot containing a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days (y-axis). 
+
+
+```{r, echo=TRUE}
+#Create a data set with the mean for each interval
+StepsPerDayMean <-  aggregate(steps~interval+WeekdayGroup, DataStepsNNA, mean, na.rm=TRUE)
+
+#Extract weekdays and weekends
+StepsPerDayMeanWeekday <-  subset(StepsPerDayMean, WeekdayGroup=="weekday")
+StepsPerDayMeanWeekend <-  subset(StepsPerDayMean, WeekdayGroup=="weekend")
+
+
+#Make a plot
+par(mfrow=c(2, 1), mar=c(4.1,4.1,2.1,2.1))
+plot(StepsPerDayMeanWeekday$interval, StepsPerDayMeanWeekday$steps, type="l", col="blue", ylim=c(0,250), xlab="5 minute interval", ylab="Average number of steps")
+legend("topright","Weekdays")
+
+plot(StepsPerDayMeanWeekend$interval, StepsPerDayMeanWeekend$steps, type="l", col="blue", ylim=c(0,250), xlab="5 minute interval", ylab="Average number of steps")
+legend("topright","Weekends")
+     
+```
+
+Based on the plot the maximum weekend activity is lower than maximum weekday activity.
+
